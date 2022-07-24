@@ -2,6 +2,7 @@
 using Alkemy.Servicios;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -75,7 +76,7 @@ namespace estudios
             });
 
             //Se Agrega IEmailSender
-            //services.AddTransient<IEmailSender, MailJetEmailSender>();
+            services.AddTransient<IEmailSender, MailJetEmailSender>();
 
             services.AddAutoMapper(typeof(Startup));
 

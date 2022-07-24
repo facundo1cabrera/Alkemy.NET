@@ -1,5 +1,6 @@
 ﻿using Alkemy.DTOs;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
@@ -15,13 +16,15 @@ namespace Alkemy.Controllers
         private readonly UserManager<IdentityUser> userManager;
         private readonly IConfiguration configuration;
         private readonly SignInManager<IdentityUser> signInManager;
+        private readonly IEmailSender emailSender;
 
         public AuthController(UserManager<IdentityUser> userManager, IConfiguration configuration,
-            SignInManager<IdentityUser> signInManager)
+            SignInManager<IdentityUser> signInManager, IEmailSender emailSender)
         {
             this.userManager = userManager;
             this.configuration = configuration;
             this.signInManager = signInManager;
+            this.emailSender = emailSender;
         }
 
         [HttpPost("register")]
@@ -37,6 +40,7 @@ namespace Alkemy.Controllers
 
             if (result.Succeeded)
             {
+                await emailSender.SendEmailAsync(credencialesUsuario.Email, "Bienvenida a DisneyCrud!", "<h1>Bienvenido!</h1>");
                 return await ConstruirToken(credencialesUsuario);
             }
             else
