@@ -11,16 +11,19 @@ namespace Alkemy.Helpers
             CreateMap<Pelicula, PeliculaDTO>()
                 .ForMember(dest => dest.Personajes, opt => opt.MapFrom(MapPersonajesPelicula));
             CreateMap<PeliculaCreacionDTO, Pelicula>()
-                .ForMember(dest => dest.PeliculasPersonajes, opt => opt.MapFrom(MapPersonajesPeliculaCreacion));
+                .ForMember(dest => dest.PeliculasPersonajes, opt => opt.MapFrom(MapPersonajesPeliculaCreacion))
+                .ForMember(dest => dest.Imagen, opt => opt.Ignore());
 
             CreateMap<Personaje, PersonajeDetalleDTO>()
                 .ForMember(dest => dest.Peliculas, opt => opt.MapFrom(MapPeliculasToPersonajes));
             CreateMap<Personaje, PersonajeDTO>();
 
-            CreateMap<PersonajeCreacionDTO, Personaje>();
+            CreateMap<PersonajeCreacionDTO, Personaje>()
+                .ForMember(dest => dest.Imagen, opt => opt.Ignore());
 
             CreateMap<Genero, GeneroDTO>();
-            CreateMap<GeneroCreacionDTO, Genero>();
+            CreateMap<GeneroCreacionDTO, Genero>()
+                .ForMember(dest => dest.Imagen, opt => opt.Ignore());
         }
 
         private List<PersonajeDTO> MapPersonajesPelicula(Pelicula pelicula, PeliculaDTO peliculaDTO)

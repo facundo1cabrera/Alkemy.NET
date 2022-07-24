@@ -1,5 +1,6 @@
 ﻿using Alkemy.DTOs;
 using Alkemy.Entidades;
+using Alkemy.Servicios;
 using AutoMapper;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
@@ -15,19 +16,39 @@ namespace Alkemy.Controllers
     {
         private readonly ApplicationDbContext context;
         private readonly IMapper mapper;
-
-        public PersonajesController(ApplicationDbContext context, IMapper mapper)
+        private readonly IAlmacenadorArchivos almacenadorArchivos;
+        private readonly string contenedor = "personajes";
+        public PersonajesController(ApplicationDbContext context, IMapper mapper, IAlmacenadorArchivos almacenadorArchivos)
         {
             this.context = context;
             this.mapper = mapper;
+            this.almacenadorArchivos = almacenadorArchivos;
         }
 
         [HttpGet]
-        public async Task<ActionResult<List<PersonajeDTO>>> GetCharacters()
+        public async Task<ActionResult<List<PersonajeDTO>>> GetCharacters([FromQuery] string name, [FromQuery] int age, [FromQuery] int movies)
         {
-            var characters = await context.Personajes.Include(x => x.PeliculasPersonajes)
+            var charactersDB = await context.Personajes.Include(x => x.PeliculasPersonajes)
                 .ThenInclude(x => x.Pelicula).ToListAsync();
-            return mapper.Map<List<PersonajeDTO>>(characters);
+
+            if (name != null)
+            {
+                charactersDB = charactersDB.Where(x => x.Nombre.Contains(name)).ToList();
+            }
+            if (age != 0)
+            {
+                charactersDB = charactersDB.Where(x => x.Edad == age).ToList();
+            }
+            if (movies != 0)
+            {
+                var movie = await context.Peliculas.FirstOrDefaultAsync(x => x.Id == movies);
+                if (movie != null)
+                {
+                    var ids = await context.PeliculasPersonajes.Where(x => x.Id == movies).Select(x => x.PersonajeId).ToListAsync();
+                    charactersDB = charactersDB.Where(x => ids.Contains(x.Id)).ToList();
+                }
+            }
+            return mapper.Map<List<PersonajeDTO>>(charactersDB);
         }
 
         [HttpGet("{id:int}")]
@@ -50,6 +71,20 @@ namespace Alkemy.Controllers
             }
 
             var characterDB = mapper.Map<Personaje>(personajeCreacionDTO);
+
+            if (personajeCreacionDTO.Imagen != null)
+            {
+                using(var memoryStream = new MemoryStream())
+                {
+                    await personajeCreacionDTO.Imagen.CopyToAsync(memoryStream);
+                    var contenido = memoryStream.ToArray();
+                    var extension = Path.GetExtension(personajeCreacionDTO.Imagen.FileName);
+                    characterDB.Imagen = await almacenadorArchivos.GuardarArchivo(contenido, extension, contenedor,
+                        personajeCreacionDTO.Imagen.ContentType);
+
+                }
+            }
+
             context.Add(characterDB);
             await context.SaveChangesAsync();
             return Ok();
@@ -58,19 +93,26 @@ namespace Alkemy.Controllers
         [HttpPut("{id:int}")]
         public async Task<ActionResult> EditCharacter(int id, [FromForm] PersonajeCreacionDTO personajeCreacionDTO)
         {
-            var exists = await context.Personajes.AnyAsync(x => x.Id == id);
-            if(!exists) { return BadRequest(); }
+            var personajeDB = await context.Personajes.FirstOrDefaultAsync(x => x.Id == id);
 
-            var movies = await context.Peliculas.Where(x => personajeCreacionDTO.Peliculas.Contains(x.Id)).ToListAsync();
-            if (movies.Count != personajeCreacionDTO.Peliculas.Count)
+            if(personajeDB == null) { return NotFound(); }
+
+            personajeDB = mapper.Map(personajeCreacionDTO, personajeDB);
+
+            if (personajeCreacionDTO.Imagen != null)
             {
-                return BadRequest("Id de alguna de las peliculas es incorrecto");
+                using (var memoryStream = new MemoryStream())
+                {
+                    await personajeCreacionDTO.Imagen.CopyToAsync(memoryStream);
+                    var contenido = memoryStream.ToArray();
+                    var extension = Path.GetExtension(personajeCreacionDTO.Imagen.FileName);
+                    personajeDB.Imagen = await almacenadorArchivos.EditarArchivo(contenido, extension, contenedor,
+                        personajeDB.Imagen,
+                        personajeCreacionDTO.Imagen.ContentType);
+
+                }
             }
 
-            var characterDB = mapper.Map<Personaje>(personajeCreacionDTO);
-            characterDB.Id = id;
-
-            context.Update(characterDB);
             await context.SaveChangesAsync();
             return Ok();
         }

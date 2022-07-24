@@ -1,5 +1,6 @@
 ﻿using Alkemy.DTOs;
 using Alkemy.Entidades;
+using Alkemy.Servicios;
 using AutoMapper;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
@@ -15,20 +16,33 @@ namespace Alkemy.Controllers
     {
         private readonly ApplicationDbContext context;
         private readonly IMapper mapper;
+        private readonly IAlmacenadorArchivos almacenadorArchivos;
+        private readonly string contenedor = "peliculas";
 
-        public PeliculasController(ApplicationDbContext context, IMapper mapper)
+        public PeliculasController(ApplicationDbContext context, IMapper mapper, IAlmacenadorArchivos almacenadorArchivos)
         {
             this.context = context;
             this.mapper = mapper;
+            this.almacenadorArchivos = almacenadorArchivos;
         }
 
         [HttpGet]
-        public async Task<ActionResult<List<PeliculaDTO>>> GetMovies()
+        public async Task<ActionResult<List<PeliculaDTO>>> GetMovies([FromQuery] string name, [FromQuery] int genre)
         {
-            var movies = await context.Peliculas.Include(x => x.PeliculasPersonajes)
+            var moviesDB = await context.Peliculas.Include(x => x.PeliculasPersonajes)
                 .ThenInclude(x => x.Personaje).ToListAsync();
-            var moviesDTO = mapper.Map<List<PeliculaDTO>>(movies);
-            return Ok(moviesDTO);
+
+            if (name != null)
+            {
+                moviesDB = moviesDB.Where(x => x.Titulo.Contains(name)).ToList();
+            }
+            if (genre != 0)
+            {
+                moviesDB = moviesDB.Where(x => x.GeneroId == genre).ToList();
+            }
+            //Not filtering desc or asc because i dont undeerstand on witch field i am suposed to filter
+
+            return mapper.Map<List<PeliculaDTO>>(moviesDB);
         }
 
         [HttpPost]
@@ -44,6 +58,20 @@ namespace Alkemy.Controllers
             if (gender == null) { return BadRequest("Genero no existente"); }
 
             var movie = mapper.Map<Pelicula>(peliculaCreacionDTO);
+
+            if (peliculaCreacionDTO.Imagen != null)
+            {
+                using (var memoryStream = new MemoryStream())
+                {
+                    await peliculaCreacionDTO.Imagen.CopyToAsync(memoryStream);
+                    var contenido = memoryStream.ToArray();
+                    var extension = Path.GetExtension(peliculaCreacionDTO.Imagen.FileName);
+                    movie.Imagen = await almacenadorArchivos.GuardarArchivo(contenido, extension, contenedor,
+                        peliculaCreacionDTO.Imagen.ContentType);
+
+                }
+            }
+
             context.Add(movie);
             await context.SaveChangesAsync();
             return Ok();
@@ -52,22 +80,25 @@ namespace Alkemy.Controllers
         [HttpPut("{id:int}")]
         public async Task<ActionResult> EditMovie([FromForm] PeliculaCreacionDTO peliculaCreacionDTO, int id)
         {
-            var exists = await context.Peliculas.AnyAsync(x => x.Id == id);
-            if (!exists) { return BadRequest(); }
+            var peliculaDB = await context.Peliculas.FirstOrDefaultAsync(x => x.Id == id);
 
-            var characters = await context.Personajes.Where(x => peliculaCreacionDTO.Personajes.Contains(x.Id)).ToListAsync();
-            if (characters.Count != peliculaCreacionDTO.Personajes.Count)
+            if (peliculaDB == null) { return NotFound(); }
+
+            peliculaDB = mapper.Map(peliculaCreacionDTO, peliculaDB);
+
+            if (peliculaCreacionDTO.Imagen != null)
             {
-                return BadRequest("Id de alguno de los personajes incorrecto");
+                using (var memoryStream = new MemoryStream())
+                {
+                    await peliculaCreacionDTO.Imagen.CopyToAsync(memoryStream);
+                    var contenido = memoryStream.ToArray();
+                    var extension = Path.GetExtension(peliculaCreacionDTO.Imagen.FileName);
+                    peliculaDB.Imagen = await almacenadorArchivos.EditarArchivo(contenido, extension, contenedor,
+                        peliculaDB.Imagen,
+                        peliculaCreacionDTO.Imagen.ContentType);
+
+                }
             }
-
-            var gender = await context.Generos.FirstOrDefaultAsync(x => x.Id == peliculaCreacionDTO.GeneroId);
-            if (gender == null) { return BadRequest("Genero no existente"); }
-
-            var movie = mapper.Map<Pelicula>(peliculaCreacionDTO);
-            movie.Id = id;
-            
-            context.Update(movie);
             await context.SaveChangesAsync();
             return Ok();
         }

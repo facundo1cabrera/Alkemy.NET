@@ -1,5 +1,6 @@
 ﻿using Alkemy.DTOs;
 using Alkemy.Entidades;
+using Alkemy.Servicios;
 using AutoMapper;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
@@ -15,12 +16,17 @@ namespace Alkemy.Controllers
     {
         private readonly ApplicationDbContext context;
         private readonly IMapper mapper;
+        private readonly IAlmacenadorArchivos almacenadorArchivos;
+        private readonly string contenedor = "generos";
 
-        public GenerosController(ApplicationDbContext context, IMapper mapper)
+        public GenerosController(ApplicationDbContext context, IMapper mapper, IAlmacenadorArchivos almacenadorArchivos)
         {
             this.context = context;
             this.mapper = mapper;
+            this.almacenadorArchivos = almacenadorArchivos;
         }
+
+        
 
         [HttpGet]
         public async Task<ActionResult<List<GeneroDTO>>> GetGenders()
@@ -33,6 +39,20 @@ namespace Alkemy.Controllers
         public async Task<ActionResult> PostGenders([FromForm] GeneroCreacionDTO generoCreacionDTO)
         {
             var gender = mapper.Map<Genero>(generoCreacionDTO);
+
+            if (generoCreacionDTO.Imagen != null)
+            {
+                using (var memoryStream = new MemoryStream())
+                {
+                    await generoCreacionDTO.Imagen.CopyToAsync(memoryStream);
+                    var contenido = memoryStream.ToArray();
+                    var extension = Path.GetExtension(generoCreacionDTO.Imagen.FileName);
+                    gender.Imagen = await almacenadorArchivos.GuardarArchivo(contenido, extension, contenedor,
+                        generoCreacionDTO.Imagen.ContentType);
+
+                }
+            }
+
             context.Add(gender);
             await context.SaveChangesAsync();
             return Ok();
@@ -41,13 +61,25 @@ namespace Alkemy.Controllers
         [HttpPut("{id:int}")]
         public async Task<ActionResult> EditGender([FromForm] GeneroCreacionDTO generoCreacionDTO, int id)
         {
-            var exists = await context.Generos.AnyAsync(x => x.Id == id);
-            if (!exists) { return BadRequest(); }
+            var genero = await context.Generos.FirstOrDefaultAsync(x => x.Id == id);
 
-            var gender = mapper.Map<Genero>(generoCreacionDTO);
-            gender.Id = id;
+            if (genero == null) { return NotFound(); }
 
-            context.Update(gender);
+            genero = mapper.Map(generoCreacionDTO, genero);
+
+            if (generoCreacionDTO.Imagen != null)
+            {
+                using (var memoryStream = new MemoryStream())
+                {
+                    await generoCreacionDTO.Imagen.CopyToAsync(memoryStream);
+                    var contenido = memoryStream.ToArray();
+                    var extension = Path.GetExtension(generoCreacionDTO.Imagen.FileName);
+                    genero.Imagen = await almacenadorArchivos.EditarArchivo(contenido, extension, contenedor,
+                        genero.Imagen,
+                        generoCreacionDTO.Imagen.ContentType);
+
+                }
+            }
             await context.SaveChangesAsync();
             return Ok();
         }
