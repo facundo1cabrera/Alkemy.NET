@@ -35,6 +35,15 @@ namespace Alkemy.Controllers
             return mapper.Map<List<GeneroDTO>>(gendersDB);
         }
 
+        [HttpGet("{id:int}")]
+        public async Task<ActionResult<GeneroDTO>> GetById(int id)
+        {
+            var genre = await context.Generos.FirstOrDefaultAsync(x => x.Id == id);
+            if(genre == null) { return NotFound(); }
+
+            return mapper.Map<GeneroDTO>(genre);
+        }
+
         [HttpPost]
         public async Task<ActionResult> PostGenders([FromForm] GeneroCreacionDTO generoCreacionDTO)
         {
