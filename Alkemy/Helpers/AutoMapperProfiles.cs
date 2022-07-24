@@ -13,6 +13,8 @@ namespace Alkemy.Helpers
             CreateMap<PeliculaCreacionDTO, Pelicula>()
                 .ForMember(dest => dest.PeliculasPersonajes, opt => opt.MapFrom(MapPersonajesPeliculaCreacion))
                 .ForMember(dest => dest.Imagen, opt => opt.Ignore());
+            CreateMap<Pelicula, PeliculaDetalleDTO>()
+                .ForMember(dest => dest.Personajes, opt => opt.MapFrom(MapPersonajesToPeliculaDetalle));
 
             CreateMap<Personaje, PersonajeDetalleDTO>()
                 .ForMember(dest => dest.Peliculas, opt => opt.MapFrom(MapPeliculasToPersonajes));
@@ -24,6 +26,25 @@ namespace Alkemy.Helpers
             CreateMap<Genero, GeneroDTO>();
             CreateMap<GeneroCreacionDTO, Genero>()
                 .ForMember(dest => dest.Imagen, opt => opt.Ignore());
+        }
+
+        private List<PersonajeDTO> MapPersonajesToPeliculaDetalle(Pelicula pelicula, PeliculaDetalleDTO peliculaDetalleDTO)
+        {
+            var result = new List<PersonajeDTO>();
+
+            if (pelicula.PeliculasPersonajes != null)
+            {
+                foreach (var peliculaPersonaje in pelicula.PeliculasPersonajes)
+                {
+                    result.Add(new PersonajeDTO()
+                    {
+                        Nombre = peliculaPersonaje.Personaje.Nombre,
+                        Imagen = peliculaPersonaje.Personaje.Imagen
+                    });
+
+                }
+            }
+            return result;
         }
 
         private List<PersonajeDTO> MapPersonajesPelicula(Pelicula pelicula, PeliculaDTO peliculaDTO)

@@ -45,6 +45,14 @@ namespace Alkemy.Controllers
             return mapper.Map<List<PeliculaDTO>>(moviesDB);
         }
 
+        [HttpGet("{id:int}")]
+        public async Task<ActionResult<PeliculaDetalleDTO>> GetPeliculaDetalle(int id)
+        {
+            var movie = await context.Peliculas.FirstOrDefaultAsync(x => x.Id == id);
+            if (movie == null) { return NotFound(); }
+            return mapper.Map<PeliculaDetalleDTO>(movie);
+        }
+
         [HttpPost]
         public async Task<ActionResult> CreateMovie([FromForm] PeliculaCreacionDTO peliculaCreacionDTO)
         {
